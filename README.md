@@ -8,7 +8,8 @@
 
 - 空房与授权簿 `vacant_rooms`，字段为 `building`（业主单位）、`room`（空房门牌）、`contact_ref`（归档联系人）、`key_tag`（钥匙牌）、`permit_ref`（书面授权）、`permit_until`（授权截止）、`status`（授权状态）。模型约束位于 `backend/domain/vacant_rooms_model.py`，规则位于 `vacant_rooms_service.py`。
 - 观察窗口与拒入 `visit_windows`，字段为 `room_code`（空房）、`visit_day`（预约日期）、`activity_count`（实见活动数）、`status`（观察状态）、`photo_receipt`（照片回执）、`desk_note`（观察或拒入记录）。模型约束位于 `backend/domain/visit_windows_model.py`，规则位于 `visit_windows_service.py`。
-- 复访间隔簿 `return_forecasts`，字段为 `room_code`（空房）、`target_day`（拟复访日期）、`prediction`（估计实见活动数）、`lag_count`（最近一次实见值）、`gap_days`（距最近实见天数）、`holdout_mae`（末段留出 MAE）、`skipped_refusals`（跳过的拒入窗口数）、`token`（后台评估凭证）。模型约束位于 `backend/domain/return_forecasts_model.py`，规则位于 `return_forecasts_service.py`。
+- 复访间隔簿 `return_forecasts`，字段为 `room_code`（空房）、`target_day`（拟复访日期）、`prediction`（估计实见活动数）、`lag_count`（最近一次实见值）、`gap_days`（距最近实见天数）、`holdout_mae`（末段留出 MAE）、`skipped_refusals`（跳过的拒入窗口数）、`method`（申请时的估计用法）、`token`（后台评估凭证）。模型约束位于 `backend/domain/return_forecasts_model.py`，规则位于 `return_forecasts_service.py`。
+- 估计方法试用 `method_trials` 与 `method_trial_entries`，字段为 `status`（试用批状态）、`scored_days`（已评分房日数）、`current_mae`（现行法 MAE）、`trial_mae`（试用法 MAE）、`current_estimate`（锁定的现行法估计）、`trial_estimate`（锁定的试用法估计）、`actual_count`（后来登记的实见数）等；全局用法开关在 `method_settings`。模型约束位于 `backend/domain/method_trials_model.py`，规则位于 `method_trials_service.py`。
 - 再授权与钥匙交接 `key_handoffs`，字段为 `room_code`（空房）、`forecast`（复查签认）、`proof_visit`（照片来源观察）、`permit_snapshot`（本次书面授权快照）、`visit_date`（拟交接日期）、`key_tag`（钥匙交接牌）、`team_member`（带钥负责人）、`status`（交接状态）、`receipt`（钥匙回单）。模型约束位于 `backend/domain/key_handoffs_model.py`，规则位于 `key_handoffs_service.py`。
 
 团队为模拟的8 人房屋养护班，安排空房复查及房东授权。
@@ -54,9 +55,14 @@ Compose 运行 Nginx、Python FastAPI、独立 Redis 消费进程、SQL 数据�
 | 空房与授权簿 | `/vacant_rooms` /vacant_rooms/renew-permit | `frontend/src/pages/vacant_rooms.js` |
 | 观察窗口与拒入 | `/visit_windows` /visit_windows/record-count，/visit_windows/register-refusal | `frontend/src/pages/visit_windows.js` |
 | 复访间隔簿 | `/return_forecasts` /return_forecasts/fit-return，/return_forecasts/sign-return | `frontend/src/pages/return_forecasts.js` |
+| 估计方法试用 | `/method_trials` /method_trials/open-trial，/method_trials/lock-trial，/method_trials/enable-trial，`/method_trial_entries` | `frontend/src/pages/method_trials.js`，`frontend/src/pages/method_trial_entries.js` |
 | 再授权与钥匙交接 | `/key_handoffs` /key_handoffs/book-revisit，/key_handoffs/release-key，/key_handoffs/return-key | `frontend/src/pages/key_handoffs.js` |
 
 SQL 实体与约束在 `backend/domain` 下维护。前端使用原生 ES modules。核心算子为 对数线性滞后回归。在 log(1+实见值) 上对上次实见量和前次实际到访间隔进行线性回归。历史按日期切分，尾段留出，逆变换后报告 MAE。拒入窗口不上样，日期间隔跨过它，实见 0 保留。
+
+### 上次实见试用批
+
+养护队可试用「上次实见数」估计下次复访：开试用批时选好房间和复访日，后台用同一份历史算出并锁定两种估计（现行滞后回归与试用上次实见）；同房同日后来登记的实见自动为两种估计评分。满五个已评分房日且试用法平均绝对误差更小时，复核员才可启用。两批同时提交启用，先办成的生效，另一批只留对比结果，重试也不能启用。已排队的日常估计照申请时的用法算，签认后 `return_forecasts.method` 记录所用方法。
 
 只使用模拟空房观察计数和书面授权代号。系统不读取照片本体，不接入门锁。训练预测不用于现场种群诊断或防治。拒入授权挂起后，若已发出的复约授权变化，签出会阻止。
 

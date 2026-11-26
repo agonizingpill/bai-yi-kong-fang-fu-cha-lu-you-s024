@@ -10,13 +10,16 @@ from domain.key_handoffs_model import key_handoffs
 
 def record_count(conn, user, data):
     from domain.visit_rules import calendar_day, good_permit, unique_window
+    from domain.method_trials_service import score_recorded
     room = get(conn, vacant_rooms, data.room_code, lock=True)
     day = calendar_day(data.visit_day)
     good_permit(room,day)
     unique_window(conn,visit_windows,room['code'],day)
     need(0 <= data.activity_count <= 999 and data.photo_receipt.startswith('PHOTO-'),
         '实见数与照片回执需要一同登记')
-    return insert(conn, visit_windows, **(data.model_dump() | {'visit_day':day}), status='已观测')
+    row = insert(conn, visit_windows, **(data.model_dump() | {'visit_day':day}), status='已观测')
+    score_recorded(conn, room['code'], day, data.activity_count)
+    return row
 
 
 def register_refusal(conn, user, data):

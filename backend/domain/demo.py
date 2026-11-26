@@ -203,6 +203,7 @@ FIXTURES = [
   'gap_days': 7,
   'holdout_mae': 0.93,
   'skipped_refusals': 0,
+  'method': '滞后回归',
   'token': 'archived-1094'}]),
     (key_handoffs, [{'code': 'KEYPLAN-REF',
   'room_code': 'ROOM-22',

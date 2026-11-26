@@ -6,6 +6,7 @@ from domain.vacant_rooms_model import vacant_rooms
 from domain.visit_windows_model import visit_windows
 from domain.return_forecasts_model import return_forecasts
 from domain.key_handoffs_model import key_handoffs
+from domain.method_trials_service import active_method
 
 
 def fit_return(conn, user, data):
@@ -17,12 +18,14 @@ def fit_return(conn, user, data):
     observations = [row for row in windows if row['status'] == '已观测']
     need(len(observations) >= 12, '同房间前序实见少于 12 次，复查估计尚不可用')
     return submit(user, {'room_code':data.room_code,'target_day':day,
-         'observations':observations,'skipped_refusals':len(windows)-len(observations)})
+         'observations':observations,'skipped_refusals':len(windows)-len(observations),
+         'method':active_method(conn)})
 
 
 def sign_return(conn, user, data):
     run = result(user,data.token)
     inputs, metrics = run['input'], run['result']
+    need(inputs.get('kind') is None, '该计算任务不是日常复查估计')
     room = get(conn, vacant_rooms, inputs['room_code'], lock=True)
     live = [row for row in scan(conn,visit_windows) if row['room_code']==room['code']
         and row['visit_day'] < inputs['target_day']]
@@ -31,4 +34,5 @@ def sign_return(conn, user, data):
          '新观察或拒入改变历史，请重新估计')
     return insert(conn, return_forecasts, code=data.code,token=data.token,
         room_code=room['code'],target_day=inputs['target_day'],
+        method=metrics.get('method','滞后回归'),
         **{k:metrics[k] for k in ('prediction','lag_count','gap_days','holdout_mae','skipped_refusals')})

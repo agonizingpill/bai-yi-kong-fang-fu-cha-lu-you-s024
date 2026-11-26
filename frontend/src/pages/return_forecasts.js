@@ -41,6 +41,10 @@
       "label": "跳过的拒入窗口数"
     },
     {
+      "name": "method",
+      "label": "估计用法"
+    },
+    {
       "name": "token",
       "label": "后台评估凭证"
     }

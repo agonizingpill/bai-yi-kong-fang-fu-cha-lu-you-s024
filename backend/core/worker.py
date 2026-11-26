@@ -3,7 +3,7 @@ from pathlib import Path
 from traceback import print_exc
 
 from core.queueing import QUEUE, broker
-from domain.learning import calculate
+from domain.learning import calculate, calculate_trial
 
 pulse = Path('/tmp/compute-heartbeat')
 
@@ -17,7 +17,10 @@ def serve():
         job = json.loads(item)
         status = {'owner': job['owner'], 'input': job['input']}
         try:
-            status.update(status='ready', result=calculate(job['input']))
+            if job['input'].get('kind') == 'trial':
+                status.update(status='ready', result=calculate_trial(job['input']))
+            else:
+                status.update(status='ready', result=calculate(job['input']))
         except ValueError as exc:
             status.update(status='rejected', detail=str(exc))
         except Exception:
